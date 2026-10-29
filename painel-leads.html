@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Painel de Leads · MDC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: barra verde fixa + linha de indicadores + tabela operável com painel lateral de detalhe */
+:root{
+  --verde:#0B2820; --verde-txt:#C6D3CC; --ouro:#E2C17E; --ouro-esc:#8A6A2A;
+  --papel:#F6F4EE; --branco:#FFFFFF; --tinta:#16231E; --tinta-2:#55635D; --linha:#DCD8CB;
+  --bom:#2F7A52; --alerta:#B5651D; --ruim:#A3361F;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-texto:"Figtree","Segoe UI",system-ui,sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+*{box-sizing:border-box} html,body{margin:0}
+body{background:var(--papel);color:var(--tinta);font:14px/1.5 var(--f-texto)}
+.g{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.topo{background:var(--verde);color:var(--verde-txt);padding-block:14px;position:sticky;top:0;z-index:5}
+.topo .in{max-width:1280px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.topo h1{font:700 20px/1 var(--f-display);color:#fff;margin:0}
+.topo h1 span{color:var(--ouro);margin-right:10px;letter-spacing:.04em}
+.topo .quem{font-size:13px;display:flex;gap:12px;align-items:center}
+main{max-width:1280px;margin:0 auto;padding-block:20px 40px}
+.btn{font:600 14px/1 var(--f-texto);border:1px solid var(--linha);background:#fff;color:var(--tinta);border-radius:10px;padding:10px 14px;cursor:pointer}
+.btn-pri{background:var(--verde);border-color:var(--verde);color:var(--ouro)}
+.btn-ouro{background:var(--ouro);border-color:var(--ouro);color:var(--verde)}
+.btn-perigo{color:var(--ruim);border-color:#E9C9C0}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid rgba(226,193,126,.6);outline-offset:2px}
+input,select,textarea{font:500 14px var(--f-texto);color:var(--tinta);background:#fff;border:1px solid var(--linha);border-radius:10px;padding:9px 12px}
+.login{max-width:380px;margin:60px auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 20px 50px -30px rgba(11,40,32,.4);display:flex;flex-direction:column;gap:12px}
+.login h2{font:700 22px var(--f-display);margin:0}
+.login p{margin:0;color:var(--tinta-2)}
+.msg{font-size:13px;color:var(--ruim);min-height:1em}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.kpi{background:#fff;border:1px solid var(--linha);border-radius:12px;padding:14px 16px}
+.kpi small{color:var(--tinta-2);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+.kpi b{display:block;font:500 24px/1.2 var(--f-num);margin-top:6px;font-variant-numeric:tabular-nums}
+.filtros{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 12px;align-items:center}
+.filtros input[type=search]{flex:1 1 220px;min-width:0}
+.tab{background:#fff;border:1px solid var(--linha);border-radius:12px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:980px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--linha);vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--tinta-2);background:#FBFAF6;position:sticky;top:0}
+td.n{font-family:var(--f-num);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+tr.l{cursor:pointer} tr.l:hover td{background:#FBFAF6}
+td .emp{font-weight:600} td .sub{color:var(--tinta-2);font-size:12px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid}
+.st-novo{color:var(--ouro-esc);border-color:var(--ouro);background:#FBF3E0}
+.st-contatado{color:#2E5A7A;border-color:#B8CFE0;background:#EEF4F9}
+.st-reuniao{color:#5B4A8A;border-color:#CFC6E6;background:#F3F0FA}
+.st-proposta{color:var(--alerta);border-color:#EBCDAE;background:#FBF1E6}
+.st-cliente{color:var(--bom);border-color:#BFDCCB;background:#EDF6F1}
+.st-descartado{color:var(--tinta-2);border-color:var(--linha);background:#F3F2EE}
+.vazio{padding:40px;text-align:center;color:var(--tinta-2)}
+.lado{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:#fff;box-shadow:-20px 0 50px -30px rgba(11,40,32,.5);z-index:10;overflow-y:auto;padding:20px max(20px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) 20px;padding-top:calc(20px + env(safe-area-inset-top,0px))}
+.lado h3{font:700 20px var(--f-display);margin:0 0 2px}
+.lado dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:16px 0}
+.lado dt{color:var(--tinta-2)} .lado dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+.lado table{min-width:0;font-size:13px}
+.lado .acoes{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.lado textarea{width:100%;min-height:90px}
+.confirma{background:#FBEDEA;border:1px solid #E9C9C0;border-radius:10px;padding:12px;margin-top:10px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--verde);color:var(--ouro);padding:10px 16px;border-radius:10px;font-weight:600;z-index:20}
+.rod{color:var(--tinta-2);font-size:12px;margin-top:20px}
+</style>
+</head>
+<body>
+<header class="topo g"><div class="in">
+  <h1><span>MDC</span>Leads do Simulador 2027</h1>
+  <div class="quem" id="quem" hidden><span id="quem-email"></span><button class="btn btn-ouro" id="sair">Sair</button></div>
+</div></header>
+
+<main class="g">
+  <form class="login" id="login" hidden>
+    <h2>Acesso da equipe</h2>
+    <p>Entre com o usuário cadastrado no Supabase da MDC.</p>
+    <label for="l-email">E-mail</label><input id="l-email" type="email" autocomplete="username" required>
+    <label for="l-senha">Senha</label><input id="l-senha" type="password" autocomplete="current-password" required>
+    <button class="btn btn-pri" type="submit">Entrar</button>
+    <p class="msg" id="l-msg" role="alert"></p>
+  </form>
+
+  <section id="app" hidden>
+    <div class="kpis">
+      <div class="kpi"><small>Leads no total</small><b id="k-total">0</b></div>
+      <div class="kpi"><small>Últimos 7 dias</small><b id="k-7d">0</b></div>
+      <div class="kpi"><small>Sem contato ainda</small><b id="k-novos">0</b></div>
+      <div class="kpi"><small>Faturamento somado</small><b id="k-fat">R$ 0</b></div>
+      <div class="kpi"><small>Economia potencial</small><b id="k-eco">R$ 0</b></div>
+    </div>
+    <div class="filtros">
+      <input type="search" id="f-busca" placeholder="Buscar empresa, nome, e-mail, cidade">
+      <select id="f-status"><option value="">Todos os status</option></select>
+      <select id="f-ativ"><option value="">Todas as atividades</option></select>
+      <select id="f-per"><option value="0">Todo o período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select>
+      <button class="btn" id="atualizar">Atualizar</button>
+      <button class="btn btn-pri" id="csv">Exportar CSV</button>
+    </div>
+    <div class="tab">
+      <table>
+        <thead><tr><th>Data</th><th>Empresa / contato</th><th>Atividade</th><th>Regime atual</th><th style="text-align:right">Faturamento</th><th>Indicado</th><th style="text-align:right">Economia/ano</th><th>Status</th></tr></thead>
+        <tbody id="linhas"></tbody>
+      </table>
+      <div class="vazio" id="vazio" hidden>Nenhum lead por aqui ainda. Assim que alguém concluir a simulação no site, ele aparece nesta lista.</div>
+    </div>
+    <p class="rod">Dados pessoais coletados com consentimento (LGPD). Use apenas para contato comercial da MDC e exclua quando o titular pedir.</p>
+  </section>
+  <p class="msg" id="cfg-msg"></p>
+</main>
+
+<aside class="lado" id="lado" hidden aria-label="Detalhe do lead"></aside>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const CONFIG = { SUPABASE_URL: "https://bkvumihlmzbqrfytstwh.supabase.co", SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrdnVtaWhsbXpicXJmeXRzdHdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyNTM0NjUsImV4cCI6MjEwODgyOTQ2NX0.KHZq11oAqI4OWfebkWMKAQtb5ND6HxtjKCTNWBK0aRA" };
+
+const $ = s=>document.querySelector(s);
+const brl = v => "R$ " + Math.round(v||0).toLocaleString("pt-BR");
+const STATUS = {novo:"Novo",contatado:"Contatado",reuniao:"Reunião",proposta:"Proposta",cliente:"Cliente",descartado:"Descartado"};
+const ATIV = {servicos:"Serviços em geral",profissional:"Profissão regulamentada",saude:"Saúde ou educação",obras:"Obras, limpeza, vigilância",comercio:"Comércio",industria:"Indústria"};
+const REG = {simples:"Simples Nacional",hibrido:"Simples híbrido",presumido:"Lucro Presumido",real:"Lucro Real",nao_sei:"Não sabe"};
+Object.entries(STATUS).forEach(([k,v])=>$("#f-status").add(new Option(v,k)));
+Object.entries(ATIV).forEach(([k,v])=>$("#f-ativ").add(new Option(v,k)));
+let sb, leads = [], aberto = null;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(t){ const el=$("#toast"); el.textContent=t; el.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(()=>el.hidden=true,2400); }
+
+if (!CONFIG.SUPABASE_URL || !CONFIG.SUPABASE_ANON_KEY || !window.supabase){
+  $("#cfg-msg").textContent = "Painel sem configuração: preencha SUPABASE_URL e SUPABASE_ANON_KEY no início do script.";
+} else {
+  sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  sb.auth.getSession().then(({data})=> data.session ? entrar(data.session) : mostrarLogin());
+}
+function mostrarLogin(){ $("#login").hidden=false; $("#app").hidden=true; $("#quem").hidden=true; }
+$("#login").addEventListener("submit", async e=>{
+  e.preventDefault(); $("#l-msg").textContent="";
+  const {data,error} = await sb.auth.signInWithPassword({email:$("#l-email").value.trim(), password:$("#l-senha").value});
+  if (error) { $("#l-msg").textContent = "E-mail ou senha não conferem."; return; }
+  entrar(data.session);
+});
+$("#sair").addEventListener("click", async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+async function entrar(sess){
+  $("#login").hidden=true; $("#app").hidden=false; $("#quem").hidden=false; $("#quem-email").textContent=sess.user.email;
+  await carregar();
+}
+async function carregar(){
+  const {data,error} = await sb.from("leads").select("*").order("created_at",{ascending:false}).limit(5000);
+  if (error){ $("#cfg-msg").textContent="Não foi possível ler os leads: "+error.message; return; }
+  leads = data || [];
+  if (!leads.length) $("#cfg-msg").textContent = "";
+  desenhar();
+}
+function filtrados(){
+  const q=$("#f-busca").value.trim().toLowerCase(), st=$("#f-status").value, at=$("#f-ativ").value, dias=Number($("#f-per").value);
+  const lim = dias ? Date.now()-dias*864e5 : 0;
+  return leads.filter(l=> (!st||l.status===st) && (!at||l.atividade===at) && (!lim||Date.parse(l.created_at)>=lim) &&
+    (!q || [l.empresa,l.nome,l.email,l.cidade,l.cnpj,l.whatsapp].join(" ").toLowerCase().includes(q)));
+}
+function desenhar(){
+  const f = filtrados();
+  $("#k-total").textContent = leads.length.toLocaleString("pt-BR");
+  $("#k-7d").textContent = leads.filter(l=>Date.parse(l.created_at)>=Date.now()-7*864e5).length.toLocaleString("pt-BR");
+  $("#k-novos").textContent = leads.filter(l=>l.status==="novo").length.toLocaleString("pt-BR");
+  $("#k-fat").textContent = brl(f.reduce((s,l)=>s+Number(l.faturamento||0),0));
+  $("#k-eco").textContent = brl(f.reduce((s,l)=>s+Number(l.economia_estimada||0),0));
+  $("#vazio").hidden = f.length>0;
+  $("#linhas").innerHTML = f.map(l=>`<tr class="l" data-id="${esc(l.id)}">
+    <td>${new Date(l.created_at).toLocaleDateString("pt-BR")}</td>
+    <td><div class="emp">${esc(l.empresa)}</div><div class="sub">${esc(l.nome)} · ${esc(l.whatsapp)}</div></td>
+    <td>${esc(ATIV[l.atividade]||l.atividade)}</td>
+    <td>${esc(REG[l.regime_atual]||l.regime_atual)}</td>
+    <td class="n">${brl(l.faturamento)}</td>
+    <td>${esc(REG[l.melhor_regime]||l.melhor_regime)}</td>
+    <td class="n">${l.economia_estimada>0?brl(l.economia_estimada):"—"}</td>
+    <td><span class="pill st-${esc(l.status)}">${esc(STATUS[l.status]||l.status)}</span></td></tr>`).join("");
+}
+["#f-busca","#f-status","#f-ativ","#f-per"].forEach(s=>$(s).addEventListener("input",desenhar));
+$("#atualizar").addEventListener("click",carregar);
+$("#linhas").addEventListener("click",e=>{ const tr=e.target.closest("tr.l"); if(tr) abrir(tr.dataset.id); });
+
+function abrir(id){
+  const l = leads.find(x=>x.id===id); if(!l) return; aberto=l;
+  const res = Array.isArray(l.resultado) ? l.resultado : [];
+  const zap = String(l.whatsapp||"").replace(/\D/g,"");
+  $("#lado").innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:start"><div><h3>${esc(l.empresa)}</h3><div class="sub" style="color:var(--tinta-2)">${new Date(l.created_at).toLocaleString("pt-BR")}</div></div><button class="btn" id="fechar">Fechar</button></div>
+    <dl>
+      <dt>Contato</dt><dd>${esc(l.nome)}</dd>
+      <dt>E-mail</dt><dd>${esc(l.email)}</dd>
+      <dt>WhatsApp</dt><dd>${esc(l.whatsapp)} ${zap?`· <a href="https://wa.me/55${zap.replace(/^55/,"")}" target="_blank" rel="noopener">abrir conversa</a>`:""}</dd>
+      <dt>CNPJ</dt><dd>${esc(l.cnpj||"—")}</dd>
+      <dt>Cidade</dt><dd>${esc([l.cidade,l.uf].filter(Boolean).join(" / ")||"—")}</dd>
+      <dt>Atividade</dt><dd>${esc(ATIV[l.atividade]||l.atividade)}</dd>
+      <dt>Regime atual</dt><dd>${esc(REG[l.regime_atual]||l.regime_atual)}</dd>
+      <dt>Faturamento</dt><dd>${brl(l.faturamento)}</dd>
+      <dt>Folha</dt><dd>${brl(l.folha)}</dd>
+      <dt>Compras</dt><dd>${brl(l.compras)}</dd>
+      <dt>Vendas B2B</dt><dd>${Math.round((l.pct_b2b||0)*100)}%</dd>
+      <dt>Margem</dt><dd>${Math.round((l.margem||0)*100)}%</dd>
+      <dt>Origem</dt><dd>${esc(l.origem||"—")}</dd>
+    </dl>
+    <table><thead><tr><th>Regime</th><th style="text-align:right">2026</th><th style="text-align:right">2027</th></tr></thead><tbody>
+      ${res.map(r=>`<tr><td>${esc(REG[r.regime]||r.regime)}${r.elegivel===false?" (inelegível)":""}${r.regime===l.melhor_regime?" ★":""}</td><td class="n">${brl(r.carga_2026)}</td><td class="n">${brl(r.carga_2027)}</td></tr>`).join("")}
+    </tbody></table>
+    <p style="margin:16px 0 6px"><label for="d-status"><b>Status</b></label></p>
+    <select id="d-status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${k===l.status?"selected":""}>${v}</option>`).join("")}</select>
+    <p style="margin:16px 0 6px"><label for="d-obs"><b>Observações</b></label></p>
+    <textarea id="d-obs">${esc(l.observacoes||"")}</textarea>
+    <div class="acoes"><button class="btn btn-pri" id="salvar">Salvar</button><button class="btn btn-perigo" id="excluir">Excluir (pedido LGPD)</button></div>
+    <div id="conf"></div>`;
+  $("#lado").hidden=false;
+  $("#fechar").onclick=()=>{$("#lado").hidden=true; aberto=null;};
+  $("#salvar").onclick=salvar;
+  $("#excluir").onclick=()=>{ $("#conf").innerHTML=`<div class="confirma">Excluir definitivamente os dados de <b>${esc(l.empresa)}</b>? Isso não pode ser desfeito.<div class="acoes"><button class="btn btn-perigo" id="sim">Excluir</button><button class="btn" id="nao">Cancelar</button></div></div>`;
+    $("#nao").onclick=()=>$("#conf").innerHTML=""; $("#sim").onclick=excluir; };
+}
+async function salvar(){
+  const upd = {status:$("#d-status").value, observacoes:$("#d-obs").value||null, atualizado_em:new Date().toISOString()};
+  const {error} = await sb.from("leads").update(upd).eq("id",aberto.id);
+  if (error){ toast("Não salvou: "+error.message); return; }
+  Object.assign(aberto, upd); desenhar(); toast("Lead atualizado");
+}
+async function excluir(){
+  const {error} = await sb.from("leads").delete().eq("id",aberto.id);
+  if (error){ toast("Não excluiu: "+error.message); return; }
+  leads = leads.filter(x=>x.id!==aberto.id); $("#lado").hidden=true; aberto=null; desenhar(); toast("Lead excluído");
+}
+$("#csv").addEventListener("click",()=>{
+  const cols=["created_at","empresa","nome","email","whatsapp","cnpj","cidade","uf","atividade","regime_atual","faturamento","folha","compras","pct_b2b","margem","melhor_regime","economia_estimada","status","observacoes","origem"];
+  const linhas=[cols.join(";")].concat(filtrados().map(l=>cols.map(c=>{ let v=l[c]??""; if(typeof v==="number") v=String(v).replace(".",","); return `"${String(v).replace(/"/g,'""')}"`; }).join(";")));
+  const blob=new Blob(["﻿"+linhas.join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`leads-simulador-mdc-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+});
+</script>
+</body>
+</html>

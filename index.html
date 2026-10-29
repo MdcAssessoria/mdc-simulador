@@ -457,6 +457,7 @@ details.avanc summary{cursor:pointer;font-weight:600;color:var(--ouro-esc)}
   </div>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 /* ===================== CONFIGURAÇÃO ===================== */
 const CONFIG = {
@@ -571,6 +572,266 @@ function simular(d){
 /* MOTOR-FIM */
 if (typeof module !== "undefined") module.exports = {simular, classificarCNAE};
 
+/* ===================== PARECER EM PDF ===================== */
+/* PDF-INICIO */
+function construirPDF(jsPDF, p){
+  const doc = new jsPDF({unit:"mm", format:"a4", compress:true});
+  const W = 210, H = 297, M = 16, CW = W - 2*M, BASE = H - 16;
+  const C = {verde:[11,40,32], verde2:[20,57,47], vtxt:[198,211,204], ouro:[226,193,126], ouroE:[138,106,42],
+    papel:[246,244,238], tinta:[22,35,30], tinta2:[78,92,86], linha:[220,216,203], branco:[255,255,255],
+    bom:[47,122,82], bomF:[237,246,241], alerta:[181,101,29], alertaF:[251,241,230], ruim:[163,54,31], ruimF:[251,237,234], bar26:[216,211,194]};
+  const fill = c => doc.setFillColor(c[0],c[1],c[2]);
+  const draw = c => doc.setDrawColor(c[0],c[1],c[2]);
+  const ink = c => doc.setTextColor(c[0],c[1],c[2]);
+  const font = (size, style) => { doc.setFont("helvetica", style||"normal"); doc.setFontSize(size); };
+  const pc = (v,c) => (v*100).toLocaleString("pt-BR",{minimumFractionDigits:c==null?1:c, maximumFractionDigits:c==null?1:c}) + "%";
+  const brl = v => "R$ " + Math.round(v||0).toLocaleString("pt-BR");
+  const lines = (s, w) => doc.splitTextToSize(String(s||""), w);
+  let y = 0;
+
+  function cabecalhoInterno(){
+    fill(C.verde); doc.rect(0,0,W,13,"F");
+    fill(C.ouro); doc.rect(0,13,W,0.8,"F");
+    font(13,"bold"); ink(C.ouro); doc.text("MDC", M, 8.8);
+    font(7.5,"normal"); ink(C.vtxt); doc.text("PARECER TÉCNICO PRELIMINAR  ·  " + p.empresa.toUpperCase().slice(0,60), W-M, 8.4, {align:"right"});
+    y = 24;
+  }
+  function garantir(h){ if (y + h > BASE){ doc.addPage(); cabecalhoInterno(); } }
+  function secao(num, titulo){
+    garantir(16);
+    y += 1.5;
+    font(8,"bold"); ink(C.ouroE); doc.text(num, M, y);
+    font(12.5,"bold"); ink(C.verde); doc.text(titulo, M + 8, y);
+    draw(C.linha); doc.setLineWidth(0.3); doc.line(M, y+2.6, W-M, y+2.6);
+    y += 7.5;
+  }
+  function paragrafo(s, opt){
+    opt = opt||{}; const size = opt.size||9.6, lh = size*0.43;
+    font(size, opt.style||"normal"); ink(opt.color||C.tinta);
+    const ls = lines(s, opt.w||CW);
+    ls.forEach(l => { garantir(lh+1); doc.text(l, opt.x||M, y); y += lh; });
+    y += opt.after==null ? 2 : opt.after;
+  }
+  function marcadores(itens){
+    itens.forEach(t => {
+      font(9.5,"normal"); const ls = lines(t, CW-6); const h = ls.length*4.0 + 1.2;
+      garantir(h);
+      fill(C.ouro); doc.rect(M+0.4, y-2.6, 2, 2, "F");
+      ink(C.tinta); ls.forEach((l,i)=> doc.text(l, M+5.5, y + i*4.0));
+      y += h;
+    });
+    y += 1.5;
+  }
+
+  /* ---------------- CAPA ---------------- */
+  fill(C.verde); doc.rect(0,0,W,66,"F");
+  draw([40,74,62]); doc.setLineWidth(0.4);
+  doc.circle(W-14, 4, 46, "S"); doc.circle(W-14, 4, 62, "S");
+  font(34,"bold"); ink(C.ouro); doc.text("MDC", M, 27);
+  font(7,"normal"); ink(C.vtxt); doc.text("ASSESSORIA CONTÁBIL, TRIBUTÁRIA E GESTÃO FINANCEIRA", M, 33.5, {charSpace:0.4});
+  font(7.5,"bold"); ink(C.ouro); doc.text("PARECER TÉCNICO PRELIMINAR", W-M, 18, {align:"right", charSpace:0.5});
+  font(8.5,"normal"); ink(C.vtxt); doc.text(p.data + "  ·  Protocolo " + p.protocolo, W-M, 23.5, {align:"right"});
+  font(21,"bold"); ink(C.branco); doc.text("Enquadramento tributário 2027", M, 50);
+  font(9.5,"normal"); ink(C.vtxt); doc.text("Reforma tributária do consumo · CBS de referência de 11,3% (TCU, 28/10/2026)", M, 57);
+  fill(C.ouro); doc.rect(0,66,W,1.2,"F");
+
+  y = 78;
+  font(7.5,"bold"); ink(C.ouroE); doc.text("EMPRESA ANALISADA", M, y, {charSpace:0.4}); y += 6.5;
+  font(15,"bold"); ink(C.tinta); lines(p.empresa, CW).slice(0,2).forEach(l=>{ doc.text(l, M, y); y += 6.4; });
+  const info = [p.cnpj ? "CNPJ " + p.cnpj : null, p.cnae ? "CNAE " + p.cnae + (p.cnaeDesc ? " — " + p.cnaeDesc : "") : null].filter(Boolean).join("   ·   ");
+  const info2 = [p.municipio, p.situacao ? "Situação " + p.situacao : null, p.porte, "Regime informado: " + p.regimeInformado].filter(Boolean).join("   ·   ");
+  font(8.8,"normal"); ink(C.tinta2);
+  if (info) lines(info, CW).forEach(l=>{ doc.text(l, M, y); y += 4.2; });
+  lines(info2, CW).forEach(l=>{ doc.text(l, M, y); y += 4.2; });
+  y += 4;
+
+  // Resumo executivo
+  const hR = 36;
+  fill(C.papel); draw(C.linha); doc.setLineWidth(0.3); doc.roundedRect(M, y, CW, hR, 3, 3, "FD");
+  fill(C.verde); doc.rect(M, y+6, 1.6, hR-12, "F");
+  font(7.5,"bold"); ink(C.ouroE); doc.text("REGIME INDICADO PARA 2027", M+7, y+9, {charSpace:0.4});
+  font(19,"bold"); ink(C.verde); doc.text(p.melhorNome, M+7, y+18.5);
+  font(9,"normal"); ink(C.tinta2);
+  lines(p.resumoLinha, CW-72).slice(0,3).forEach((l,i)=> doc.text(l, M+7, y+25 + i*4.2));
+  font(30,"bold"); ink(C.ouroE); doc.text(pc(p.melhorPct), W-M-7, y+20, {align:"right"});
+  font(8.5,"normal"); ink(C.tinta2); doc.text("do faturamento em impostos", W-M-7, y+26, {align:"right"});
+  y += hR + 10;
+
+  // Gráfico
+  font(11,"bold"); ink(C.verde); doc.text("Carga tributária por regime", M, y);
+  font(8,"normal"); ink(C.tinta2); doc.text("% do faturamento · CBS, IBS, ICMS/ISS, IRPJ, CSLL e INSS patronal", W-M, y, {align:"right"});
+  y += 6;
+  const maxP = Math.max(...p.regs.map(r=>Math.max(r.p26, r.p27)), 0.01);
+  const xBar = M + 46, wBar = CW - 46 - 22;
+  p.regs.forEach(r => {
+    font(9.2, r.melhor ? "bold" : "normal"); ink(r.eleg ? C.tinta : C.tinta2);
+    doc.text(r.nome + (r.melhor ? "  (indicado)" : ""), M, y+3.6);
+    font(7,"normal"); ink(C.tinta2); doc.text(r.eleg ? r.sub : "Faturamento acima do limite", M, y+7.4);
+    fill(C.bar26); doc.roundedRect(xBar, y, Math.max(0.8, wBar*r.p26/maxP), 3.2, 1.2, 1.2, "F");
+    fill(r.melhor ? C.verde : (r.eleg ? C.ouroE : C.linha)); doc.roundedRect(xBar, y+4.4, Math.max(0.8, wBar*r.p27/maxP), 3.6, 1.2, 1.2, "F");
+    font(10.5,"bold"); ink(r.melhor ? C.verde : C.tinta); doc.text(pc(r.p27), W-M, y+5, {align:"right"});
+    font(7,"normal"); ink(C.tinta2); doc.text("2026: " + pc(r.p26), W-M, y+8.6, {align:"right"});
+    y += 12.5;
+  });
+  font(7.5,"normal"); ink(C.tinta2);
+  fill(C.bar26); doc.rect(xBar, y-1.8, 5, 2.2, "F"); doc.text("2026 (sistema atual)", xBar+6.5, y);
+  fill(C.ouroE); doc.rect(xBar+42, y-1.8, 5, 2.2, "F"); doc.text("2027 (com CBS)", xBar+48.5, y);
+  y += 8;
+
+  // Tabela
+  const cols = [{t:"Regime", w:64, a:"left"},{t:"Carga 2026", w:28, a:"right"},{t:"Carga 2027", w:28, a:"right"},{t:"Valor 2027", w:32, a:"right"},{t:"Situação", w:CW-152, a:"right"}];
+  garantir(8 + p.regs.length*7);
+  fill(C.verde); doc.rect(M, y, CW, 7, "F");
+  font(8,"bold"); ink(C.ouro);
+  let x = M; cols.forEach(c=>{ doc.text(c.t, c.a==="right" ? x+c.w-2.5 : x+2.5, y+4.7, {align:c.a}); x += c.w; });
+  y += 7;
+  p.regs.forEach((r,i)=>{
+    if (i%2===0){ fill(C.papel); doc.rect(M, y, CW, 7, "F"); }
+    const vals = [r.nome, pc(r.p26), pc(r.p27), brl(r.c27), r.melhor ? "Indicado" : (r.eleg ? "Elegível" : "Inelegível")];
+    x = M; cols.forEach((c,j)=>{ font(8.8, (r.melhor && (j===0||j===4)) ? "bold":"normal"); ink(r.melhor && j===4 ? C.bom : (r.eleg ? C.tinta : C.tinta2)); doc.text(vals[j], c.a==="right" ? x+c.w-2.5 : x+2.5, y+4.7, {align:c.a}); x += c.w; });
+    y += 7;
+  });
+  draw(C.linha); doc.line(M, y, W-M, y);
+  y += 6;
+  paragrafo(p.conclusao, {size:9.6});
+
+  /* ---------------- ANÁLISE ---------------- */
+  doc.addPage(); cabecalhoInterno();
+  secao("01", "Identificação");
+  const ident = [["Razão social", p.empresa], ["CNPJ", p.cnpj||"Não informado"], ["CNAE principal", p.cnae ? p.cnae + (p.cnaeDesc ? " — " + p.cnaeDesc : "") : "Não informado"],
+    ["Natureza jurídica", p.natureza||"—"], ["Situação e porte", [p.situacao, p.porte].filter(Boolean).join(" · ")||"—"], ["Município", p.municipio||"—"],
+    ["Regime informado", p.regimeInformado], ["Faturamento anual", brl(p.fat) + " · " + Math.round(p.b2b*100) + "% das vendas para empresas"]];
+  ident.forEach(([k,v],i)=>{
+    font(9,"normal"); const ls = lines(v, CW-52); const h = Math.max(5.8, ls.length*4.0+1.8);
+    garantir(h);
+    if (i%2===0){ fill(C.papel); doc.rect(M, y-4.2, CW, h, "F"); }
+    font(8.2,"bold"); ink(C.tinta2); doc.text(k.toUpperCase(), M+2.5, y, {charSpace:0.2});
+    font(9.2,"normal"); ink(C.tinta); ls.forEach((l,j)=> doc.text(l, M+52, y + j*4.1));
+    y += h;
+  });
+  y += 3;
+
+  secao("02", "Enquadramento tributário");
+  marcadores(p.enquadramento);
+
+  secao("03", "Conferência com os dados da Receita Federal");
+  const rot = {ok:["CONFERE", C.bom, C.bomF], at:["ATENÇÃO", C.alerta, C.alertaF], di:["DIVERGÊNCIA", C.ruim, C.ruimF]};
+  p.checks.forEach(c=>{
+    const [lab, cor, fundo] = rot[c.tipo];
+    font(9,"normal"); const ls = lines(c.txt, CW-34); const h = ls.length*4.0 + 3.8;
+    garantir(h + 1.5);
+    fill(fundo); doc.roundedRect(M, y-4, CW, h, 2, 2, "F");
+    font(6.8,"bold"); ink(cor); doc.text(lab, M+3, y+0.2, {charSpace:0.3});
+    font(9,"normal"); ink(C.tinta); ls.forEach((l,j)=> doc.text(l, M+30, y + j*4.1));
+    y += h + 1.5;
+  });
+  y += 1;
+
+  secao("04", "Pontos de atenção para 2027");
+  marcadores(p.pontos);
+
+  secao("05", "Oportunidades a verificar");
+  marcadores(p.oportunidades);
+
+  secao("06", "Próximos passos recomendados");
+  marcadores(["Validar os números desta simulação com a escrituração dos últimos 12 meses.",
+    "Confirmar o enquadramento de cada receita por NCM/NBS nos anexos da LC 214/2025.",
+    "Definir o regime de 2027 antes do primeiro recolhimento de janeiro.",
+    "Agendar a revisão gratuita deste parecer com a equipe da MDC."]);
+
+  garantir(33);
+  y += 4;
+  draw(C.tinta); doc.setLineWidth(0.3); doc.line(M, y, M+70, y);
+  y += 5;
+  font(10.5,"bold"); ink(C.tinta); doc.text("Edvaldo Ribeiro de Carvalho", M, y);
+  font(8.5,"normal"); ink(C.tinta2); doc.text("Contador · CRC 1SP346098-O/0", M, y+4.5); doc.text("Responsável técnico — MDC Assessoria Ltda · CNPJ 48.140.121/0001-65", M, y+8.8);
+  font(8.5,"normal"); ink(C.tinta2); doc.text("Bragança Paulista, " + p.data, W-M, y+4.5, {align:"right"});
+  y += 14;
+  font(7,"normal"); ink(C.tinta2);
+  lines("Parecer preliminar gerado a partir de dados informados pelo usuário e de bases públicas da Receita Federal, com CBS de referência de 11,3% calculada pelo TCU em 28/10/2026 (sujeita à resolução do Senado), IBS de 0,1% em 2027 e acréscimo de presunção da LC 224/2025. Estimativa para apoio à decisão; não substitui a análise individual das operações, contratos e benefícios da empresa.", CW).forEach(l=>{ doc.text(l, M, y); y += 3.2; });
+
+  /* ---------------- POR QUE A MDC ---------------- */
+  doc.addPage(); cabecalhoInterno();
+  font(7.5,"bold"); ink(C.ouroE); doc.text("QUEM ASSINA ESTE PARECER", M, y, {charSpace:0.4}); y += 8;
+  font(19,"bold"); ink(C.verde);
+  lines("A MDC trabalha para a sua empresa pagar o imposto certo, e nada a mais.", CW).forEach(l=>{ doc.text(l, M, y); y += 7.6; });
+  y += 1;
+  paragrafo("Somos uma assessoria contábil e tributária de Bragança Paulista que acompanha cada cliente de perto. Antecipamos mudanças como a reforma tributária, revisamos o enquadramento e transformamos impostos pagos a maior em caixa para o negócio.", {size:10, color:C.tinta2, after:5});
+
+  const hN = 30;
+  fill(C.verde); doc.roundedRect(M, y, CW, hN, 3, 3, "F");
+  font(30,"bold"); ink(C.ouro); doc.text("R$ 15 mi", M+8, y+19);
+  font(11.5,"bold"); ink(C.branco); doc.text("em créditos tributários recuperados para clientes", M+68, y+11.5);
+  font(8.6,"normal"); ink(C.vtxt);
+  lines("Diversos casos de sucesso em revisão fiscal, retificação de obrigações e recuperação de tributos pagos indevidamente, com segurança técnica e documentação completa.", CW-76).forEach((l,i)=> doc.text(l, M+68, y+17.5+i*4));
+  y += hN + 7;
+
+  const pil = [["PLANEJAMENTO","Planejamento tributário de perto","Escolha do regime, revisão de preços e processos fiscais e regimes especiais de ICMS, com ações antecipadas para melhorar o resultado."],
+    ["RECUPERAÇÃO","Créditos que viram caixa","Levantamento dos últimos 5 anos, retificação de EFD e DCTF e pedido de compensação ou restituição junto à Receita."],
+    ["EQUIPE","Consultoria no dia a dia","Profissionais treinados e capacitados para o trabalho consultivo, que assessoram a empresa na rotina e respondem rápido."]];
+  const gw = (CW - 8) / 3, hP = 43;
+  pil.forEach((pp,i)=>{
+    const px = M + i*(gw+4);
+    fill(C.branco); draw(C.linha); doc.setLineWidth(0.3); doc.roundedRect(px, y, gw, hP, 2.5, 2.5, "FD");
+    fill(C.ouro); doc.rect(px+5, y+5, 10, 0.9, "F");
+    font(6.8,"bold"); ink(C.ouroE); doc.text(pp[0], px+5, y+10.5, {charSpace:0.3});
+    font(10,"bold"); ink(C.verde); lines(pp[1], gw-10).forEach((l,j)=> doc.text(l, px+5, y+16.5+j*4.4));
+    font(8,"normal"); ink(C.tinta2); lines(pp[2], gw-10).slice(0,5).forEach((l,j)=> doc.text(l, px+5, y+25+j*3.5));
+  });
+  y += hP + 6;
+
+  font(11,"bold"); ink(C.verde); doc.text("Onde costumamos encontrar dinheiro de volta", M, y); y += 5;
+  const chips = ["PIS/COFINS sobre insumos","ICMS e ISS na base do PIS/COFINS","Produtos monofásicos no Simples","INSS sobre verbas indenizatórias","IRPJ/CSLL pagos a maior","Créditos de ICMS acumulados","Anexo e Fator R do Simples"];
+  let cx = M; font(8.2,"normal");
+  chips.forEach(t=>{
+    const w = doc.getTextWidth(t) + 7;
+    if (cx + w > W-M){ cx = M; y += 8; }
+    fill(C.papel); draw(C.linha); doc.roundedRect(cx, y, w, 6, 3, 3, "FD");
+    ink(C.tinta); doc.text(t, cx+3.5, y+4.1);
+    cx += w + 2.5;
+  });
+  y += 12;
+
+  font(11,"bold"); ink(C.verde); doc.text("Como trabalhamos", M, y); y += 5;
+  const etapas = [["1","Diagnóstico","Leitura de SPED, DCTF e cadastro para mapear riscos e créditos."],["2","Plano tributário","Regime, preços e contratos ajustados para 2027."],["3","Implantação","Cadastros fiscais, notas e obrigações acessórias em dia."],["4","Acompanhamento","Revisão mensal dos números e das mudanças da reforma."]];
+  const ew = (CW - 9) / 4, hE = 27;
+  etapas.forEach((e,i)=>{
+    const ex = M + i*(ew+3);
+    fill(i===0 ? C.verde : C.papel); doc.roundedRect(ex, y, ew, hE, 2.5, 2.5, "F");
+    font(13,"bold"); ink(i===0 ? C.ouro : C.ouroE); doc.text(e[0], ex+4, y+7.5);
+    font(9.2,"bold"); ink(i===0 ? C.branco : C.verde); doc.text(e[1], ex+4, y+13);
+    font(7.4,"normal"); ink(i===0 ? C.vtxt : C.tinta2); lines(e[2], ew-8).slice(0,3).forEach((l,j)=> doc.text(l, ex+4, y+17.6+j*3.3));
+  });
+  y += hE + 5;
+
+  const hC = 40;
+  garantir(hC);
+  fill(C.papel); draw(C.ouro); doc.setLineWidth(0.5); doc.roundedRect(M, y, CW, hC, 3, 3, "FD");
+  font(12.5,"bold"); ink(C.verde); doc.text("Revise este parecer com um especialista", M+7, y+9.5);
+  font(8.8,"normal"); ink(C.tinta2);
+  lines("Sem custo e sem compromisso: validamos a simulação com os seus números reais e apontamos os créditos que podem ser recuperados.", 84).forEach((l,i)=> doc.text(l, M+7, y+16+i*4.1));
+  const ct = [["WhatsApp","(11) 98859-8041"],["E-mail","edvaldo@mdcassessoria.com"],["Site","mdcassessoria.com"],["Instagram","@mdcassessoria_"],["LinkedIn","MDC Assessoria"]];
+  ct.forEach(([k,v],i)=>{ font(7,"bold"); ink(C.ouroE); doc.text(k.toUpperCase(), M+100, y+8.5+i*6.3, {charSpace:0.3}); font(9,"bold"); ink(C.tinta); doc.text(v, M+120, y+8.5+i*6.3); });
+  doc.link(M+120, y+5, 60, 5, {url:"https://wa.me/5511988598041"});
+  doc.link(M+120, y+17.6, 60, 5, {url:"https://mdcassessoria.com"});
+  doc.link(M+120, y+23.9, 60, 5, {url:"https://instagram.com/mdcassessoria_"});
+  doc.link(M+120, y+30.2, 60, 5, {url:"https://www.linkedin.com/company/mdc-assessoria-e-consultoria-cont%C3%A1bil"});
+  y += hC + 6;
+  font(8.5,"normal"); ink(C.tinta2); doc.text("Atendimento em Bragança Paulista e região, e para empresas de todo o Brasil de forma digital.", M, y);
+
+  /* ---------------- RODAPÉ ---------------- */
+  const n = doc.getNumberOfPages();
+  for (let i=1;i<=n;i++){
+    doc.setPage(i);
+    draw(C.linha); doc.setLineWidth(0.3); doc.line(M, H-13, W-M, H-13);
+    font(7,"normal"); ink(C.tinta2);
+    doc.text("MDC Assessoria Ltda · CNPJ 48.140.121/0001-65 · Bragança Paulista/SP · mdcassessoria.com · (11) 98859-8041", M, H-8.5);
+    doc.text("Página " + i + " de " + n, W-M, H-8.5, {align:"right"});
+  }
+  return doc;
+}
+/* PDF-FIM */
+
 /* ===================== INTERFACE ===================== */
 if (typeof document !== "undefined") (function(){
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -581,7 +842,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;"
 const fmtCNAE = c => { c = String(c||"").replace(/\D/g,"").padStart(7,"0"); return c.length===7 ? `${c.slice(0,4)}-${c.slice(4,5)}/${c.slice(5)}` : c; };
 const fmtCNPJ = c => String(c||"").replace(/\D/g,"").replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/,"$1.$2.$3/$4-$5");
 const NOMES_REG = {simples:"Simples Nacional", hibrido:"Simples híbrido", presumido:"Lucro Presumido", real:"Lucro Real", nao_sei:"Não informado"};
-let enviado = false, receita = null, classif = null;
+let enviado = false, receita = null, classif = null, ultimo = null;
 
 function moedaFmt(el){ el.addEventListener("input", ()=>{ const n = num(el.value); el.value = n ? n.toLocaleString("pt-BR") : ""; }); }
 ["#fat","#folha","#compras"].forEach(s=>moedaFmt($(s)));
@@ -703,6 +964,14 @@ function conferencias(d, r){
   return out;
 }
 
+function pontosAtencao(d, conf){
+  const pontos = conf.filter(c=>c.tipo!=="ok").map(c=>c.txt);
+  if (d.regime==="simples" && d.fat<=P.tetoSN) pontos.push("Empresas do Simples podem optar pelo IBS/CBS por fora do DAS a cada semestre (nova janela em março/2027 para o 2º semestre).");
+  if (["servicos","profissional"].includes(d.atividade)) pontos.push("Serviços intensivos em mão de obra têm pouco crédito de CBS: a folha não gera crédito.");
+  if (d.fat > P.lim224 && d.regime==="presumido") pontos.push("Receita acima de R$ 5 milhões: presunção do Lucro Presumido com acréscimo de 10% (LC 224/2025) sobre o excedente.");
+  pontos.push("Split payment facultativo a partir do 2º semestre de 2027 e obrigatório entre empresas em 2028: planejar o capital de giro.");
+  return pontos;
+}
 function oportunidades(d, r){
   const o = [];
   if (d.regime==="presumido" || d.regime==="real"){
@@ -762,10 +1031,7 @@ function renderParecer(r, d, conf){
   const hoje = new Date().toLocaleDateString("pt-BR");
   const m = r.melhor, emp = (receita && receita.razao) || $("#empresa").value || "Empresa simulada";
   const op = oportunidades(d, r);
-  const pontos = conf.filter(c=>c.tipo!=="ok").map(c=>c.txt);
-  if (d.regime==="simples" && d.fat<=P.tetoSN) pontos.push("Empresas do Simples podem optar pelo IBS/CBS por fora do DAS a cada semestre (nova janela em março/2027 para o 2º semestre).");
-  if (["servicos","profissional"].includes(d.atividade)) pontos.push("Serviços intensivos em mão de obra têm pouco crédito de CBS: a folha não gera crédito.");
-  pontos.push("Split payment facultativo a partir do 2º semestre de 2027 e obrigatório entre empresas em 2028: planejar o capital de giro.");
+  const pontos = pontosAtencao(d, conf);
   const notasCnae = classif ? classif.notas : [];
   const tbl = r.regs.map(x=>`<tr><td>${x.nome}${x===m?" (indicado)":""}${x.eleg?"":" — inelegível"}</td><td class="n">${pct(x.p26)}</td><td class="n">${pct(x.p27)}</td><td class="n">${brl(x.c27)}</td></tr>`).join("");
   const anexoTxt = r.anexo + (ATIV[d.atividade].anexo==="FR" && !(classif&&classif.anexo) ? ` (Fator R de ${pct(r.fatorR)})` : "");
@@ -827,6 +1093,7 @@ $("#form").addEventListener("submit", async ev=>{
   if (whats.replace(/\D/g,"").length<10) { err.textContent="Informe o WhatsApp com DDD."; $("#whats").focus(); return; }
   if (!$("#consent").checked) { err.textContent="Para continuar, marque a autorização de contato."; $("#consent").focus(); return; }
   const d = dados(), r = simular(d), conf = conferencias(d, r);
+  ultimo = {r, d, conf};
   render(r, d, conf); ir(4);
   if ($("#site").value || enviado) return;
   const btn=$("#enviar"); btn.disabled = true;
@@ -856,7 +1123,43 @@ $("#form").addEventListener("submit", async ev=>{
   else if (g.motivo !== "sem_config"){ $("#aviso-envio").textContent = "Não conseguimos registrar seu contato agora. Fale com a gente pelo WhatsApp (11) 98859-8041."; }
 });
 $("#refazer").addEventListener("click",()=>ir(1));
-$("#imprimir").addEventListener("click",()=>window.print());
+function pacotePDF(r, d, conf){
+  const m = r.melhor;
+  const anexoTxt = r.anexo + (ATIV[d.atividade].anexo==="FR" && !(classif&&classif.anexo) ? ` (Fator R de ${pct(r.fatorR)})` : "");
+  const enq = [`Atividade considerada: ${ATIV[d.atividade].nome}.`,
+    `Simples Nacional: Anexo ${anexoTxt}, faixa ${r.faixa}, alíquota efetiva de ${pct(r.aef,2)}.`,
+    `Lucro Presumido: presunção de ${pct(r.pir,1)} para IRPJ e ${pct(r.pcs,1)} para CSLL${d.fat>P.lim224?", com acréscimo de 10% sobre a receita acima de R$ 5 milhões (LC 224/2025)":""}.`,
+    `CBS/IBS 2027: ${r.red>0?`redução de ${Math.round(r.red*100)}% da alíquota, resultando em cerca de ${pct(P.cbs*(1-r.red))}`:"alíquota cheia de 11,3% (11,2% de CBS + 0,1% de IBS)"} sobre a receita, com crédito das compras.`].concat(classif ? classif.notas : []);
+  let resumo;
+  if (r.atual && r.atual.id !== m.id && r.economia > 0) resumo = `Economia estimada de ${brl(r.economia)} por ano frente ao ${r.atual.nome} (${pct(r.atual.p27)} do faturamento).`;
+  else if (r.atual && r.atual.id === m.id){ const seg = r.regs.filter(x=>x.eleg && x!==m).sort((a,b)=>a.c27-b.c27)[0]; resumo = "Seu regime atual segue o mais econômico." + (seg ? ` A próxima alternativa, ${seg.nome}, custaria ${brl(seg.c27-m.c27)} a mais por ano.` : ""); }
+  else resumo = `Carga estimada de ${brl(m.c27)} no ano.`;
+  const conclusao = `Conclusão preliminar: o regime de menor carga em 2027 é o ${m.nome}, com ${pct(m.p27)} do faturamento${r.atual&&r.atual.id!==m.id&&r.economia>0?`, economia estimada de ${brl(r.economia)} por ano frente ao regime atual`:""}.` + (r.melhorCadeia.id!==m.id&&d.b2b>=0.5?` Considerando o crédito repassado aos clientes empresariais, o ${r.melhorCadeia.nome} tende a ser mais competitivo no preço.`:"");
+  const hoje = new Date();
+  const prot = "SIM-" + hoje.toISOString().slice(0,10).replace(/-/g,"") + "-" + String(Math.floor(1000 + Math.random()*9000));
+  const nomeEmp = (receita && receita.razao) || $("#empresa").value.trim() || "Empresa simulada";
+  return { data: hoje.toLocaleDateString("pt-BR"), protocolo: prot, empresa: nomeEmp,
+    cnpj: $("#cnpj").value.replace(/\D/g,"").length===14 ? fmtCNPJ($("#cnpj").value) : "",
+    cnae: d.cnae ? fmtCNAE(d.cnae) : "", cnaeDesc: receita && receita.cnaeDesc || "",
+    municipio: receita ? [receita.municipio, receita.uf].filter(Boolean).join(" / ") : $("#cidade").value.trim(),
+    situacao: receita && receita.situacao || "", porte: receita && receita.porte || "", natureza: receita && receita.natureza || "",
+    regimeInformado: NOMES_REG[d.regime], fat: d.fat, b2b: d.b2b,
+    melhorNome: m.nome, melhorPct: m.p27, resumoLinha: resumo,
+    regs: r.regs.map(x=>({nome:x.nome, sub:x.sub, p26:x.p26, p27:x.p27, c27:x.c27, eleg:x.eleg, melhor:x===m})),
+    conclusao, enquadramento: enq, checks: conf, pontos: pontosAtencao(d, conf), oportunidades: oportunidades(d, r) };
+}
+$("#imprimir").addEventListener("click",()=>{
+  if (!ultimo) return;
+  const lib = window.jspdf && window.jspdf.jsPDF;
+  if (!lib){ window.print(); return; }
+  const btn = $("#imprimir"); btn.disabled = true; btn.textContent = "Gerando PDF…";
+  try{
+    const pk = pacotePDF(ultimo.r, ultimo.d, ultimo.conf);
+    const slug = pk.empresa.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40) || "empresa";
+    construirPDF(lib, pk).save(`Parecer-MDC-${slug}-${pk.data.replace(/\//g,"-")}.pdf`);
+  } catch(e){ window.print(); }
+  btn.disabled = false; btn.textContent = "Baixar parecer em PDF";
+});
 
 function avisarAltura(){ try{ parent.postMessage({mdcSimAltura: document.documentElement.scrollHeight}, "*"); }catch(e){} }
 new ResizeObserver(avisarAltura).observe(document.body);

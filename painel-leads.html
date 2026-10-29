@@ -163,7 +163,7 @@ function filtrados(){
   const q=$("#f-busca").value.trim().toLowerCase(), st=$("#f-status").value, at=$("#f-ativ").value, dias=Number($("#f-per").value);
   const lim = dias ? Date.now()-dias*864e5 : 0;
   return leads.filter(l=> (!st||l.status===st) && (!at||l.atividade===at) && (!lim||Date.parse(l.created_at)>=lim) &&
-    (!q || [l.empresa,l.nome,l.email,l.cidade,l.cnpj,l.whatsapp].join(" ").toLowerCase().includes(q)));
+    (!q || [l.empresa,l.razao_social,l.nome,l.email,l.cidade,l.cnpj,l.cnae,l.whatsapp].join(" ").toLowerCase().includes(q)));
 }
 function desenhar(){
   const f = filtrados();
@@ -179,7 +179,7 @@ function desenhar(){
     <td>${esc(ATIV[l.atividade]||l.atividade)}</td>
     <td>${esc(REG[l.regime_atual]||l.regime_atual)}</td>
     <td class="n">${brl(l.faturamento)}</td>
-    <td>${esc(REG[l.melhor_regime]||l.melhor_regime)}</td>
+    <td>${esc(REG[l.melhor_regime]||l.melhor_regime)}${l.carga_pct_melhor!=null?` <span class="sub">${(l.carga_pct_melhor*100).toLocaleString("pt-BR",{maximumFractionDigits:1})}%</span>`:""}${Array.isArray(l.divergencias)&&l.divergencias.some(x=>x.tipo==="di")?` <span class="pill st-proposta">divergência</span>`:""}</td>
     <td class="n">${l.economia_estimada>0?brl(l.economia_estimada):"—"}</td>
     <td><span class="pill st-${esc(l.status)}">${esc(STATUS[l.status]||l.status)}</span></td></tr>`).join("");
 }
@@ -198,6 +198,9 @@ function abrir(id){
       <dt>E-mail</dt><dd>${esc(l.email)}</dd>
       <dt>WhatsApp</dt><dd>${esc(l.whatsapp)} ${zap?`· <a href="https://wa.me/55${zap.replace(/^55/,"")}" target="_blank" rel="noopener">abrir conversa</a>`:""}</dd>
       <dt>CNPJ</dt><dd>${esc(l.cnpj||"—")}</dd>
+      <dt>Razão social</dt><dd>${esc(l.razao_social||"—")}</dd>
+      <dt>CNAE</dt><dd>${esc(l.cnae||"—")}${l.cnae_descricao?" · "+esc(l.cnae_descricao):""}</dd>
+      <dt>Receita</dt><dd>${esc(l.situacao_cadastral||"—")} · ${esc(l.porte||"—")} · Simples: ${l.opcao_simples_receita===true?"optante":(l.opcao_simples_receita===false?"não optante":"—")}</dd>
       <dt>Cidade</dt><dd>${esc([l.cidade,l.uf].filter(Boolean).join(" / ")||"—")}</dd>
       <dt>Atividade</dt><dd>${esc(ATIV[l.atividade]||l.atividade)}</dd>
       <dt>Regime atual</dt><dd>${esc(REG[l.regime_atual]||l.regime_atual)}</dd>
@@ -211,6 +214,10 @@ function abrir(id){
     <table><thead><tr><th>Regime</th><th style="text-align:right">2026</th><th style="text-align:right">2027</th></tr></thead><tbody>
       ${res.map(r=>`<tr><td>${esc(REG[r.regime]||r.regime)}${r.elegivel===false?" (inelegível)":""}${r.regime===l.melhor_regime?" ★":""}</td><td class="n">${brl(r.carga_2026)}</td><td class="n">${brl(r.carga_2027)}</td></tr>`).join("")}
     </tbody></table>
+    ${Array.isArray(l.divergencias)&&l.divergencias.length?`<p style="margin:16px 0 6px"><b>Conferência</b></p><ul style="margin:0;padding-left:18px;font-size:13px">${l.divergencias.map(x=>`<li>${x.tipo==="di"?"<b>Divergência:</b> ":"Atenção: "}${esc(x.texto)}</li>`).join("")}</ul>`:""}
+    ${l.parecer&&Array.isArray(l.parecer.oportunidades)?`<p style="margin:16px 0 6px"><b>Oportunidades apontadas</b></p><ul style="margin:0;padding-left:18px;font-size:13px">${l.parecer.oportunidades.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:""}
+    <div class="acoes"><button class="btn btn-ouro" id="pedido-ia">Copiar pedido de parecer completo (IA)</button></div>
+    <p class="sub" style="color:var(--tinta-2);font-size:12px;margin:6px 0 0">Cole no Claude: ele pesquisa o CNPJ na internet e monta o parecer técnico detalhado.</p>
     <p style="margin:16px 0 6px"><label for="d-status"><b>Status</b></label></p>
     <select id="d-status">${Object.entries(STATUS).map(([k,v])=>`<option value="${k}" ${k===l.status?"selected":""}>${v}</option>`).join("")}</select>
     <p style="margin:16px 0 6px"><label for="d-obs"><b>Observações</b></label></p>
@@ -220,8 +227,37 @@ function abrir(id){
   $("#lado").hidden=false;
   $("#fechar").onclick=()=>{$("#lado").hidden=true; aberto=null;};
   $("#salvar").onclick=salvar;
+  $("#pedido-ia").onclick=()=>copiarPedido(l);
   $("#excluir").onclick=()=>{ $("#conf").innerHTML=`<div class="confirma">Excluir definitivamente os dados de <b>${esc(l.empresa)}</b>? Isso não pode ser desfeito.<div class="acoes"><button class="btn btn-perigo" id="sim">Excluir</button><button class="btn" id="nao">Cancelar</button></div></div>`;
     $("#nao").onclick=()=>$("#conf").innerHTML=""; $("#sim").onclick=excluir; };
+}
+function copiarPedido(l){
+  const res = (Array.isArray(l.resultado)?l.resultado:[]).map(r=>`- ${REG[r.regime]||r.regime}: 2026 ${brl(r.carga_2026)} | 2027 ${brl(r.carga_2027)}${r.elegivel===false?" (inelegível)":""}`).join("\n");
+  const div = (Array.isArray(l.divergencias)?l.divergencias:[]).map(x=>"- "+x.texto).join("\n") || "- nenhuma";
+  const txt = `Prepare um parecer técnico tributário detalhado, em português, para a MDC Assessoria Contábil (responsável técnico Edvaldo Ribeiro de Carvalho, CRC 1SP346098-O/0), sobre a empresa abaixo, considerando a reforma tributária (LC 214/2025, CBS de 11,3% calculada pelo TCU para 2027) e a LC 224/2025.
+
+Pesquise na internet tudo que for público sobre este CNPJ: cadastro na Receita (CNAE principal e secundários, situação, porte, opção pelo Simples, histórico de regime), notícias, processos públicos, certidões, licitações, setor de atuação e concorrentes. Compare o CNAE com a atividade e os números informados, aponte divergências, riscos e oportunidades de recuperação de créditos, e recomende o regime tributário para 2027 com justificativa.
+
+Empresa: ${l.razao_social||l.empresa}
+CNPJ: ${l.cnpj||"não informado"}
+CNAE: ${l.cnae||"não informado"}${l.cnae_descricao?" - "+l.cnae_descricao:""}
+Cidade: ${[l.cidade,l.uf].filter(Boolean).join(" / ")||"não informada"}
+Regime atual informado: ${REG[l.regime_atual]||l.regime_atual}
+Atividade informada: ${ATIV[l.atividade]||l.atividade}
+Faturamento anual: ${brl(l.faturamento)} | Folha: ${brl(l.folha)} | Compras com nota: ${brl(l.compras)} | Margem antes de IR: ${Math.round((l.margem||0)*100)}% | Vendas para empresas: ${Math.round((l.pct_b2b||0)*100)}%
+
+Resultado do simulador:
+${res}
+Regime indicado pelo simulador: ${REG[l.melhor_regime]||l.melhor_regime}
+
+Conferências do simulador:
+${div}
+
+Entregue o parecer com: identificação, enquadramento, análise de regimes, riscos, oportunidades de crédito, recomendação e próximos passos, no padrão visual da MDC.`;
+  const ok = () => toast("Pedido copiado. Cole no Claude.");
+  if (navigator.clipboard) navigator.clipboard.writeText(txt).then(ok).catch(()=>fallback());
+  else fallback();
+  function fallback(){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); ok();}catch(e){ toast("Selecione e copie o texto manualmente."); } ta.remove(); }
 }
 async function salvar(){
   const upd = {status:$("#d-status").value, observacoes:$("#d-obs").value||null, atualizado_em:new Date().toISOString()};
@@ -235,7 +271,7 @@ async function excluir(){
   leads = leads.filter(x=>x.id!==aberto.id); $("#lado").hidden=true; aberto=null; desenhar(); toast("Lead excluído");
 }
 $("#csv").addEventListener("click",()=>{
-  const cols=["created_at","empresa","nome","email","whatsapp","cnpj","cidade","uf","atividade","regime_atual","faturamento","folha","compras","pct_b2b","margem","melhor_regime","economia_estimada","status","observacoes","origem"];
+  const cols=["created_at","empresa","razao_social","cnae","cnae_descricao","nome","email","whatsapp","cnpj","cidade","uf","atividade","regime_atual","faturamento","folha","compras","pct_b2b","margem","melhor_regime","carga_pct_melhor","economia_estimada","status","observacoes","origem"];
   const linhas=[cols.join(";")].concat(filtrados().map(l=>cols.map(c=>{ let v=l[c]??""; if(typeof v==="number") v=String(v).replace(".",","); return `"${String(v).replace(/"/g,'""')}"`; }).join(";")));
   const blob=new Blob(["﻿"+linhas.join("\r\n")],{type:"text/csv;charset=utf-8"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`leads-simulador-mdc-${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
